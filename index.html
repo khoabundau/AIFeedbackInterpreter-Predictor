@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Feedback Interpreter & Predictor</title>
+
+    <script
+      type="text/javascript"
+      src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"
+    ></script>
+
+    <style>
+      :root {
+        --rmit-red: #2f4156; /* Navy, was #d50032 */
+        --dark-gray: #2f4156; /* Navy, was #333333 */
+        --light-gray: #f5efeb; /* Beige, was #f4f4f4 */
+        --accent-blue: #567c8d; /* Teal, was #0078d4 */
+        --border-color: #c8d9e6; /* Sky Blue, was #e0e0e0 */
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        background-color: var(--light-gray);
+      }
+      body.modal-open {
+        overflow: hidden;
+      }
+      .header-bar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 60px;
+        background-color: var(--rmit-red); /* Changed from black */
+        color: white;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 2rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        z-index: 1000;
+      }
+      .header-title {
+        font-size: 1.4rem;
+        font-weight: 600;
+      }
+      /* --- NEW CSS RULE TO FIX LINK STYLING --- */
+      .header-title a {
+        color: white; /* Overrides default link color */
+        text-decoration: none; /* Removes underline */
+        transition: opacity 0.2s;
+      }
+      .header-title a:hover {
+        opacity: 50%; /* Consistent hover effect */
+      }
+      /* --- END NEW CSS RULE --- */
+      .header-nav button {
+        background: none;
+        border: none;
+        color: white;
+        padding: 0;
+        cursor: pointer;
+        font-size: 1.15em;
+        font-weight: 500;
+        transition: opacity 0.2s;
+        opacity: 0.85;
+      }
+      .header-nav button:hover {
+        opacity: 50%;
+      }
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.6);
+        z-index: 2000;
+        display: none; /* Changed by JS */
+        justify-content: center;
+        align-items: center;
+      }
+      .modal-content {
+        background: white;
+        padding: 2rem 2.5rem;
+        border-radius: 12px;
+        max-width: 800px;
+        width: 90%;
+        max-height: 85vh;
+        overflow-y: auto;
+        position: relative;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        animation: fadeIn 0.3s ease-out;
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(-20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .modal-close-btn {
+        position: absolute;
+        top: 15px;
+        right: 20px;
+        background: none;
+        border: none;
+        font-size: 2rem;
+        line-height: 1;
+        cursor: pointer;
+        color: var(--accent-blue); /* Changed from #aaa */
+        transition: color 0.2s;
+      }
+      .modal-close-btn:hover {
+        color: var(--dark-gray);
+      }
+      .modal-content h3 {
+        color: var(--rmit-red);
+        margin-top: 0;
+        font-size: 1.8rem;
+      }
+      .modal-content h4 {
+        color: var(--dark-gray);
+        font-size: 1.3rem;
+        margin-top: 1.5rem;
+        margin-bottom: 0.5rem;
+        border-bottom: 2px solid var(--light-gray);
+        padding-bottom: 0.5rem;
+      }
+      .modal-content p,
+      .modal-content li {
+        color: var(--dark-gray); /* Changed from #555 */
+        line-height: 1.6;
+      }
+      .modal-content ul {
+        padding-left: 20px;
+      }
+      .modal-content ul ul {
+        margin-top: 0.5rem;
+      }
+      .scrolling-container {
+        height: 100vh;
+        overflow-y: scroll;
+        scroll-snap-type: y mandatory;
+        -webkit-scroll-snap-type: y mandatory;
+        overflow-x: hidden;
+        padding-top: 60px; /* To offset for fixed header */
+        box-sizing: border-box;
+      }
+      .page {
+        height: calc(100vh - 60px); /* Adjust height for header */
+        width: 100vw;
+        scroll-snap-align: start;
+        -webkit-scroll-snap-align: start;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        padding: 0.5rem 0;
+        box-sizing: border-box;
+      }
+      #page-1 {
+        background-color: #a2abb8;
+      }
+      #page-2 {
+        background-color: #a2abb8;
+      }
+      .content-box {
+        width: 90%;
+        padding: 3rem;
+        max-height: 95%;
+        background: #ffffff;
+        border-radius: 16px;
+        -webkit-border-radius: 16px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+        -webkit-box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border-color);
+        overflow-y: auto;
+      }
+      @media (max-width: 768px) {
+        .header-bar {
+          padding: 0 1rem;
+        }
+        .header-title {
+          font-size: 1.2rem;
+        }
+        .content-box {
+          width: 90%;
+          padding: 1.5rem;
+        }
+        /* Removed incorrect hover rule from here */
+      }
+      h1,
+      h2 {
+        color: var(--rmit-red);
+        text-align: center;
+        margin-top: 0;
+        font-size: 2.2rem;
+        margin-bottom: 2rem;
+      }
+      h2 {
+        font-size: 1.8rem;
+        color: var(--dark-gray);
+      }
+      .form-row {
+        margin-bottom: 1.5rem;
+      }
+      label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: var(--dark-gray);
+      }
+      textarea,
+      input[type="email"] {
+        width: 100%;
+        padding: 14px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        -webkit-border-radius: 8px;
+        font-size: 1rem;
+        box-sizing: border-box;
+        transition: border-color 0.3s, box-shadow 0.3s;
+        -webkit-transition: border-color 0.3s, box-shadow 0.3s;
+        -webkit-appearance: none;
+      }
+      textarea:focus,
+      input:focus {
+        outline: none;
+        border-color: var(--accent-blue);
+        box-shadow: 0 0 0 3px rgba(86, 124, 141, 0.2); /* Adjusted for Teal */
+        -webkit-box-shadow: 0 0 0 3px rgba(86, 124, 141, 0.2); /* Adjusted for Teal */
+      }
+      textarea#feedback-text {
+        min-height: 180px;
+        resize: vertical;
+      }
+      textarea#feedback-to-predict {
+        min-height: 150px;
+        resize: vertical;
+        background-color: #fff;
+      }
+      .button {
+        background-color: var(--rmit-red);
+        color: white;
+        border: none;
+        padding: 14px 24px;
+        border-radius: 8px;
+        -webkit-border-radius: 8px;
+        cursor: pointer;
+        font-size: 1.1rem;
+        font-weight: 600;
+        transition: background-color 0.3s, transform 0.1s;
+        -webkit-transition: background-color 0.3s, transform 0.1s;
+        display: block;
+        width: 100%;
+        text-align: center;
+      }
+      .button:hover {
+        background-color: #1e2a38; /* Darker Navy, was #a50027 */
+      }
+      .button:active {
+        transform: translateY(1px);
+      }
+      .nav-button {
+        background: none;
+        border: 1px solid var(--accent-blue);
+        color: var(--accent-blue);
+        margin-top: 1rem;
+        font-weight: 500;
+      }
+      .nav-button:hover {
+        background: rgba(86, 124, 141, 0.1); /* Adjusted for Teal */
+      }
+      .modes-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+      }
+      .mode-btn {
+        flex-grow: 1;
+        background-color: #fff; /* Changed from #f0f0f0 */
+        border: 1px solid var(--border-color);
+        color: var(--dark-gray);
+        padding: 10px;
+        border-radius: 8px;
+        -webkit-border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-weight: 500;
+      }
+      .mode-btn:hover {
+        background-color: var(--border-color); /* Changed from #e0e0e0 */
+      }
+      .mode-btn.selected {
+        background-color: var(--accent-blue);
+        color: #ffffff;
+        border-color: var(--accent-blue);
+        font-weight: 600;
+      }
+      #prediction-results {
+        margin-top: 1.5rem;
+        padding: 1.5rem;
+        background: #fff; /* Changed from #fdfdff */
+        border: 1px dashed var(--border-color);
+        border-radius: 8px;
+        min-height: 80px;
+        white-space: pre-wrap;
+        line-height: 1.7;
+        font-style: italic;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="modal-overlay" id="about-modal">
+      <div class="modal-content">
+        <button class="modal-close-btn" id="modal-close-btn">×</button>
+        <h3>Welcome to the Colleague Feedback Interpreter</h3>
+        <p>
+          This platform is designed to help you give feedback in the workplace
+          that’s not only honest—but thoughtful, supportive, and even a little
+          fun.
+        </p>
+        <p>
+          We know that sometimes, feedback comes with frustration. It’s totally
+          okay—you can vent, let of steam, and say exactly what’s on your mind
+          here. Think of this space as your secret feedback outlet. No one will
+          see the raw version but you.
+        </p>
+        <p>
+          Once you're done, our tool takes your message and gently rewrites it
+          into something uplifting, supportive, and easy for your colleagues to
+          understand. You get to express yourself freely, and your teammates
+          receive the message in a constructive and kind tone.
+        </p>
+        <p>
+          After all, giving feedback can feel awkward or overly serious. That’s
+          why this tool helps you lighten the mood, soften the edges, and foster
+          a more positive team culture—all while keeping your message clear and
+          honest.
+        </p>
+        <h4>How It Works</h4>
+        <h4>Page 1: Share Your Feedback</h4>
+        <ul>
+          <li>Write your feedback in the large text box.</li>
+          <li>Enter your colleague's email address.</li>
+          <li>Click “Interpret & Send” and we’ll:</li>
+          <ul>
+            <li>Fetch a joke from the JokeAPI.</li>
+            <li>
+              Blend your feedback with that joke to make it more witty, warm,
+              and supportive.
+            </li>
+            <li>Email the final message to your selected colleague.</li>
+          </ul>
+        </ul>
+        <h4>Page 2: Empathy Sandbox</h4>
+        <ul>
+          <li>
+            Choose from 5 tone styles: 🔹 Aggressive 🔹 Sad 🔹 Constructive 🔹
+            Supportive 🔹 Confusing
+          </li>
+          <li>
+            Our AI (powered by Gemini) will predict a potential response to your
+            original feedback in the selected tone—helping you anticipate
+            reactions and refine your communication style.
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <header class="header-bar">
+      <div class="header-title">
+        <a href="index.html">Colleague Feedback Interpreter</a>
+      </div>
+      <nav class="header-nav">
+        <button id="about-btn">About</button>
+      </nav>
+    </header>
+
+    <div class="scrolling-container">
+      <section id="page-1" class="page">
+        <div class="content-box">
+          <h1>Feedback Input</h1>
+          <div class="form-row">
+            <label for="feedback-text">Write your raw feedback here</label>
+            <textarea
+              id="feedback-text"
+              placeholder="e.g., 'stop being so annoying, you also make many mistakes which have been fixed'"
+            ></textarea>
+          </div>
+          <div class="form-row">
+            <label>Recipient's Email</label>
+            <input
+              type="email"
+              id="recipient-email"
+              placeholder="colleague@example.com"
+            />
+          </div>
+          <button id="send-btn" class="button">Interpret & Send</button>
+          <p
+            id="send-status"
+            style="margin-top: 1rem; text-align: center; font-weight: 500"
+          ></p>
+          <button id="scroll-to-predict-btn" class="button nav-button">
+            Anticipate Response ↓
+          </button>
+        </div>
+      </section>
+
+      <section id="page-2" class="page">
+        <div class="content-box">
+          <h2>Empathy Sandbox</h2>
+          <div class="form-row">
+            <label for="feedback-to-predict"
+              >Analyze your feedback & predict the response:</label
+            >
+            <textarea id="feedback-to-predict"></textarea>
+          </div>
+          <div class="form-row">
+            <label>Click a mode to predict the response:</label>
+            <div class="modes-container" id="prediction-modes-container">
+              <button class="mode-btn" data-mode="Aggressive">
+                Aggressive
+              </button>
+              <button class="mode-btn" data-mode="Sad">Sad</button>
+              <button class="mode-btn" data-mode="Constructive">
+                Constructive
+              </button>
+              <button class="mode-btn" data-mode="Supportive">
+                Supportive
+              </button>
+              <button class="mode-btn" data-mode="Confusing">Confusing</button>
+            </div>
+          </div>
+          <div id="prediction-results">
+            Select a mode above to predict a potential response.
+          </div>
+          <button id="scroll-to-sender-btn" class="button nav-button">
+            ↑ Back to Interpreter
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      (function () {
+        emailjs.init({ publicKey: "U12VllDW2t4EecV1B" });
+      })();
+
+      document.addEventListener("DOMContentLoaded", () => {
+        const aboutBtn = document.getElementById("about-btn");
+        const aboutModal = document.getElementById("about-modal");
+        const modalCloseBtn = document.getElementById("modal-close-btn");
+
+        const showModal = () => {
+          aboutModal.style.display = "flex";
+          document.body.classList.add("modal-open");
+        };
+
+        const hideModal = () => {
+          aboutModal.style.display = "none";
+          document.body.classList.remove("modal-open");
+        };
+
+        aboutBtn.addEventListener("click", showModal);
+        modalCloseBtn.addEventListener("click", hideModal);
+        aboutModal.addEventListener("click", (e) => {
+          if (e.target === aboutModal) {
+            hideModal();
+          }
+        });
+
+        const page1 = document.getElementById("page-1"),
+          page2 = document.getElementById("page-2");
+        const sendBtn = document.getElementById("send-btn"),
+          scrollToPredictBtn = document.getElementById("scroll-to-predict-btn");
+        const scrollToSenderBtn = document.getElementById(
+            "scroll-to-sender-btn"
+          ),
+          predictionModesContainer = document.getElementById(
+            "prediction-modes-container"
+          );
+        const sendStatus = document.getElementById("send-status"),
+          feedbackText = document.getElementById("feedback-text");
+        const recipientEmailInput = document.getElementById("recipient-email"),
+          feedbackToPredict = document.getElementById("feedback-to-predict");
+        const predictionResults = document.getElementById("prediction-results");
+
+        const geminiApiKey = "AIzaSyAKYVSuED-MuyxUjl9kyVGOcNgfMEuYW8s";
+        const emailjsServiceId = "service_wgynsss";
+        const emailjsTemplateId = "template_h4ro3bm";
+
+        scrollToPredictBtn.addEventListener("click", () =>
+          page2.scrollIntoView({ behavior: "smooth" })
+        );
+        scrollToSenderBtn.addEventListener("click", () =>
+          page1.scrollIntoView({ behavior: "smooth" })
+        );
+
+        sendBtn.addEventListener("click", async () => {
+          const rawFeedback = feedbackText.value.trim();
+          const email = recipientEmailInput.value.trim();
+          if (
+            !rawFeedback ||
+            !email ||
+            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+          ) {
+            sendStatus.style.color = "var(--rmit-red)";
+            sendStatus.textContent =
+              "Please fill out all fields with valid information.";
+            return;
+          }
+          sendStatus.style.color = "var(--dark-gray)";
+          sendStatus.textContent = "Interpreting with AI...";
+          sendBtn.disabled = true;
+
+          try {
+            const aiPrompt = `Rewrite the following raw feedback into a supportive, constructive, and positive message. NEVER repeat any negative words. Focus on forward-looking, collaborative solutions. Output ONLY the rewritten message. RAW FEEDBACK: "${rawFeedback}"`;
+            const interpretedFeedback = await callGemini(aiPrompt);
+
+            feedbackToPredict.value = rawFeedback;
+
+            predictionResults.innerHTML =
+              "Select a mode above to predict a potential response to your original feedback.";
+            predictionModesContainer
+              .querySelectorAll(".mode-btn")
+              .forEach((b) => b.classList.remove("selected"));
+
+            sendStatus.textContent = "Fetching a joke...";
+            const jokeResponse = await fetch(
+              "https://v2.jokeapi.dev/joke/Any?type=single&safe-mode"
+            );
+            if (!jokeResponse.ok) throw new Error("Could not fetch a joke.");
+            const jokeData = await jokeResponse.json();
+
+            const templateParams = {
+              subject: "Some friendly feedback (and a quick laugh!)",
+              to_email: email,
+              joke: jokeData.joke,
+              feedback: interpretedFeedback,
+            };
+            sendStatus.textContent = "Sending safe & humorous email...";
+            await emailjs.send(
+              emailjsServiceId,
+              emailjsTemplateId,
+              templateParams
+            );
+
+            sendStatus.style.color = "#567C8D"; /* Teal, was green */
+            sendStatus.textContent =
+              "Success! Interpreted feedback sent. Now check the sandbox below.";
+            feedbackText.value = "";
+          } catch (error) {
+            handleError(error, sendStatus);
+          } finally {
+            sendBtn.disabled = false;
+          }
+        });
+
+        predictionModesContainer.addEventListener("click", async (e) => {
+          if (!e.target.classList.contains("mode-btn")) return;
+
+          const selectedBtn = e.target;
+          const mode = selectedBtn.dataset.mode;
+          const feedbackToAnalyze = feedbackToPredict.value.trim();
+
+          if (!feedbackToAnalyze) {
+            predictionResults.textContent =
+              "Please provide some feedback to analyze.";
+            return;
+          }
+
+          predictionResults.style.color = "var(--dark-gray)";
+          predictionResults.style.fontStyle = "normal";
+          predictionResults.textContent = `AI is anticipating a "${mode}" response...`;
+
+          const allModeButtons =
+            predictionModesContainer.querySelectorAll(".mode-btn");
+          allModeButtons.forEach((b) => {
+            b.disabled = true;
+            b.classList.remove("selected");
+          });
+          selectedBtn.classList.add("selected");
+
+          try {
+            const predictPrompt = `You are a psychological communications expert. Analyze the following constructive feedback. Predict how a receiver might realistically respond in a single emotional state: **${mode}**. Provide a short, realistic, first-person quote as the response. Do not add any conversational text or explain the mode. FEEDBACK TO ANALYZE: "${feedbackToAnalyze}"`;
+            const predictedResponse = await callGemini(predictPrompt);
+            predictionResults.textContent = predictedResponse;
+          } catch (error) {
+            handleError(error, predictionResults);
+          } finally {
+            allModeButtons.forEach((b) => (b.disabled = false));
+          }
+        });
+
+        async function callGemini(prompt) {
+          const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
+          const response = await fetch(API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+          });
+
+          if (!response.ok) {
+            const errorDetails = await response.json();
+            throw new Error(
+              `AI API request failed: ${
+                errorDetails.error?.message || "Unknown reason"
+              }`
+            );
+          }
+          const data = await response.json();
+          if (!data.candidates || data.candidates.length === 0) {
+            if (data.promptFeedback?.blockReason) {
+              throw new Error(
+                `AI blocked your content (Reason: ${data.promptFeedback.blockReason}). Please rephrase.`
+              );
+            }
+            throw new Error("AI returned an empty response.");
+          }
+          return data.candidates[0].content.parts[0].text;
+        }
+
+        function handleError(error, statusElement) {
+          console.error("Full error object:", error);
+          statusElement.style.color = "var(--rmit-red)";
+          if (error?.text) {
+            statusElement.textContent = `Error: ${error.text}`;
+          } else if (error?.message) {
+            statusElement.textContent = `Error: ${error.message}`;
+          } else {
+            statusElement.textContent =
+              "An unknown error occurred. Please check the browser console.";
+          }
+        }
+      });
+    </script>
+  </body>
+</html>
